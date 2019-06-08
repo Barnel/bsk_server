@@ -24,23 +24,27 @@ net.createServer(function (socket) {
             if(error === null) {
                 xmlObject = result
                 // console.log(xmlObject.toString())
-                const json = JSON.parse(JSON.stringify(xmlObject))
-                // console.log(Object.keys(json["EncryptedFile"]["EncryptedFileHeader"][0]))
-                console.log(json["EncryptedFile"]["Content"], json["EncryptedFile"]["Content"][0])
-                // console.log(json["EncryptedFile"]["EncryptedFileHeader"][0])
-                const content = xmlObject["EncryptedFile"]["Content"][0]
-                const sessionKey = xmlObject["EncryptedFile"]["EncryptedFileHeader"][0]["SessionKey"][0]
-                const cipherMode = xmlObject["EncryptedFile"]["EncryptedFileHeader"][0]["CipherMode"][0]
-                sequelize.sync()
-                    .then(() => File.create({
-                        session_key: sessionKey,
-                        content: content,
-                        cipher_mode: cipherMode
-                    }))
-                    .then(file => {
-                        console.log(file.toJSON());
-                    });
-                socket.write("THE DATA\n" + content + "\n" + sessionKey + "\n" + cipherMode + "\n END")
+                if(xmlObject) {
+                    const json = JSON.parse(JSON.stringify(xmlObject))
+                    if(json) {
+                        // console.log(Object.keys(json["EncryptedFile"]["EncryptedFileHeader"][0]))
+                        // console.log(json["EncryptedFile"]["Content"], json["EncryptedFile"]["Content"][0])
+                        // console.log(json["EncryptedFile"]["EncryptedFileHeader"][0])
+                        const content = json["EncryptedFile"]["Content"][0]
+                        const sessionKey = json["EncryptedFile"]["EncryptedFileHeader"][0]["SessionKey"][0]
+                        const cipherMode = json["EncryptedFile"]["EncryptedFileHeader"][0]["CipherMode"][0]
+                        sequelize.sync()
+                            .then(() => File.create({
+                                session_key: sessionKey,
+                                content: content,
+                                cipher_mode: cipherMode
+                            }))
+                            .then(file => {
+                                console.log(file.toJSON());
+                            });
+                        socket.write("THE DATA\n" + content + "\n" + sessionKey + "\n" + cipherMode + "\n END")
+                    }
+                }
             }
             else {
                 console.log("error start\n" + error + "\nerror end");
