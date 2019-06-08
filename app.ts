@@ -1,28 +1,57 @@
-// @ts-ignore
-import * as express from "express"
-import * as http from "http"
-import * as fs from "fs"
-let bodyParser = require('body-parser')
-const app = express();
+let net = require('net');
+const xml2js = require('xml2js');
+const fs = require('fs');
+// Start a TCP Server
+const Sequelize = require('sequelize');
+const sequelize = new Sequelize('postgres://localhost:5432/bsk');
 
-const httpServer = new http.Server(app)
+const parser = new xml2js.Parser();
 
-app.use(bodyParser({keepExtension: true}));
+export class File extends Sequelize.Model {}
+
+File.init({
+    session_key: Sequelize.STRING,
+    content: Sequelize.STRING,
+    cipher_mode: Sequelize.STRING,
+}, { sequelize, modelName: 'file' });
 
 
-app.get('/:fileName', function(req, res){
-    res.download(`./uploads/${req.params.fileName}`);
-});
+net.createServer(function (socket) {
+    // Handle incoming messages from clients.
+    socket.on('data', function (data) {
+        let xmlObject
+        parser.parseString(data, function(error, result) {
+            if(error === null) {
+                xmlObject = result
+                // console.log(xmlObject.toString())
+                const json = JSON.parse(JSON.stringify(xmlObject))
+                // console.log(Object.keys(json["EncryptedFile"]["EncryptedFileHeader"][0]))
+                console.log(json["EncryptedFile"]["Content"], json["EncryptedFile"]["Content"][0])
+                // console.log(json["EncryptedFile"]["EncryptedFileHeader"][0])
+                const content = xmlObject["EncryptedFile"]["Content"][0]
+                const sessionKey = xmlObject["EncryptedFile"]["EncryptedFileHeader"][0]["SessionKey"][0]
+                const cipherMode = xmlObject["EncryptedFile"]["EncryptedFileHeader"][0]["CipherMode"][0]
+                sequelize.sync()
+                    .then(() => File.create({
+                        session_key: sessionKey,
+                        content: content,
+                        cipher_mode: cipherMode
+                    }))
+                    .then(file => {
+                        console.log(file.toJSON());
+                    });
+                socket.write("THE DATA\n" + content + "\n" + sessionKey + "\n" + cipherMode + "\n END")
+            }
+            else {
+                console.log("error start\n" + error + "\nerror end");
+            }
+        });
 
-app.post('/:fileName', function(req, res){
-    fs.writeFile(`./uploads/${req.params.fileName}`, JSON.stringify(req.body), (err) => {
-        if(err) {
-            console.log(err)
-        }
-    })
-    res.sendStatus(200)
-});
+    });
 
-httpServer.listen(9000, function(){
-    console.log('listening on *:9000');
-});
+    socket.on('end', function () {
+        socket.write("FINISHED UPLOADING")
+    });
+}).listen(5000);
+
+console.log("server running at port 5000\n");
